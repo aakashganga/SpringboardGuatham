@@ -1,0 +1,105 @@
+---
+title: "Gautham Trial"
+output: html_notebook
+---
+
+```{r}
+library(RCurl)
+library(RJSONIO)
+library(plyr)
+library(stringr)
+library(dplyr)
+```
+
+```{r}
+url <- function(address, return.call = "json") {
+ root <- "http://maps.google.com/maps/api/geocode/"
+ u <- paste(root, return.call, "?address=", address, sep = "")
+ return(URLencode(u))
+}
+```
+
+```{r}
+url_latlong <- function(origins, destinations) {
+ root <- "https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial"
+ u <- paste(root, "&origins=", origins, "&destinations=", destinations, sep = "")
+ return(URLencode(u))
+}
+```
+
+```{r}
+findapproxmatch <- function(origins, destinations, verbose=FALSE) {
+ print (paste0("origins:",origins))
+ print (paste0("destinations:",destinations))
+ if(verbose) cat(origins, destinations,"\n")
+ u <- url_latlong(origins, destinations)
+ print (u)
+ doc <- getURL(u)
+ x <- fromJSON(doc,simplify = FALSE)
+ #print(x)
+if(x$status=="OK") {
+  dist <- x$rows[[1]]$elements[[1]]$distance$text
+ } else {
+ dist <- NA
+ }
+distnum = (unlist(str_split(string = dist, pattern = " "))[1])
+#distnum = str_split(string = dist, pattern = " ")
+print (paste0("distnum:",distnum))
+return (as.numeric(distnum))
+}
+```
+
+```{r}
+distance = findapproxmatch("37.7929789,-122.4212424", "37.7225491,-122.4410618")
+print (distance)
+```
+```{r}
+crimes_zip <- c('00601','00638','00682')
+crimes_lat <- c(18.180555, 18.295913, 18.221464)
+crimes_long <- c(-66.749961, -66.515588, -67.156039)
+crimes_value <- c(100,120,150)
+crimesdf = data.frame(crimes_zip,crimes_lat,crimes_long,crimes_value)
+```
+
+```{r}
+houseprice_lat <- c(18.003025, 18.323585, 18.361945)
+houseprice_long <- c(-66.046237, -65.883206, -67.175597)
+houseprice_price <- c(100000,2000000,300000)
+housepricedf <- data.frame(houseprice_lat,houseprice_long,houseprice_price)
+```
+
+```{r}
+crimesdf$latlong <- paste(crimesdf$crimes_lat,crimesdf$crimes_long,sep = ",")
+crimesdf
+```
+```{r}
+housepricedf$latlong <- paste(housepricedf$houseprice_lat,housepricedf$houseprice_long,sep = ",")
+housepricedf
+```
+
+```{r}
+get_price <- function(latlong){
+  return(housepricedf[which(housepricedf$latlong == as.character(latlong)),'houseprice_price'])
+}
+```
+
+
+
+```{r}
+VecFun <- Vectorize(findapproxmatch)
+distmatrix <- outer(crimesdf$latlong,housepricedf$latlong,VecFun)
+colnames(distmatrix) = housepricedf$latlong
+rownames(distmatrix) = crimesdf$latlong
+#housepricelatlonglist <- colnames(distmatrix)[apply(distmatrix,1,which.min)]
+#sapply(housepricelatlonglist,get_price)
+housepriceval <- rownames(distmatrix)[apply(distmatrix,2,which.min)]
+crimeval <- colnames(distmatrix)[apply(distmatrix,2,which.min)]
+distval <- apply(distmatrix,2,min)
+combineddf <- data.frame(housepriceval,crimeval,distval)
+
+```
+
+```{r}
+distmatrix
+```
+
